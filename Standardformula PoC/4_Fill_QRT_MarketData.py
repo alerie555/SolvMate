@@ -292,7 +292,7 @@ schema             = 'default'
 volume             = 'output'
 volume_path        = f"/Volumes/{catalog}/{schema}/{volume}" # /Volumes/main/default/my-volume
 
-#RUN_ID = 001 # For test purposes; If the script is run by workflow, this is set as a parameter
+#RUN_ID = "001"  # For test purposes; If the script is run by workflow, this is set as a parameter
 RUN_ID = dbutils.widgets.get("run_id")
 volume_folder   = f"output_{RUN_ID}"
 volume_folder_path = f"{volume_path}/{volume_folder}" # /Volumes/main/default/my-volume/my-folder
@@ -308,23 +308,19 @@ spark = SparkSession.builder.appName("test").getOrCreate()
 # Read in the tables as data frames
 Output_Enriched2_df = spark.table("default.Output_Enriched2")
 
-#Load template
+# Load template
 template_file = f"{volume_path}/Output_Template.xlsx"
 template = openpyxl.load_workbook(template_file)
 
-#Create a writer
-out_path = 'dbfs:/tmp/output.xlsx' #workaround using dbfs
+# Create a writer
+local_out_path = f"/tmp/output_{RUN_ID}.xlsx"  # Use a local path
 
 # Use the openpyxl engine directly
-with pd.ExcelWriter(out_path, engine='openpyxl') as writer:
+with pd.ExcelWriter(local_out_path, engine='openpyxl') as writer:
     writer.book = template
     # Write dataframe to excel using template and save in output path
     Output_Enriched2_df.toPandas().to_excel(writer, sheet_name='Output mapping', startrow=12, startcol=2, index=False, header=False)
 
-# The new workbook is now saved in the output path dbfs:/tmp/output.xlsx
+# The new workbook is now saved in the local path
 # Now copy the output file into the volume:
-
-# Create an empty folder in a volume.
-w.files.create_directory(volume_folder_path)
-move('dbfs:/tmp/output.xlsx',f"{volume_file_path}")
-dbutils.fs.ls(f"{volume_file_path}")
+move(local_out_path, volume_file_path)
